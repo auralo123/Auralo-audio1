@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>html,body{margin:0;padding:0;background:transparent;}</style>
+</head>
+<body>
+<!-- Auralo Audioplayer — reines HTML/CSS/JS, keine Abhängigkeiten. In ein "HTML einbetten"-Element bei Onepage einfügen. -->
+<div class="auralo-player" data-src="https://www.dropbox.com/scl/fi/aqhxe7mptk8ut9tyspdmj/call_recording_7739049.mp3-2.ogg?rlkey=kpc97mi6enshlc9feqjohhc5n&st=pwnb5o83&dl=1" data-start="20" style="display:inline-flex;align-items:center;gap:14px;padding:8px 22px 8px 8px;background:#ffffff;border:1px solid rgba(0,0,0,0.08);border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,0.08);font-family:'Inter','Helvetica Neue',Arial,sans-serif;max-width:100%;box-sizing:border-box;">
+  <audio class="ap-audio" preload="metadata"></audio>
+  <button class="ap-btn" type="button" aria-label="Abspielen" style="position:relative;flex-shrink:0;width:42px;height:42px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,#4f8cff,#2255e0);box-shadow:0 4px 14px rgba(47,111,235,0.35),inset 0 1px 1px rgba(255,255,255,0.3);">
+    <span class="ap-icon-play" style="width:0;height:0;margin-left:3px;border-top:7px solid transparent;border-bottom:7px solid transparent;border-left:12px solid #fff;"></span>
+    <span class="ap-icon-pause" style="display:none;align-items:center;gap:3px;">
+      <span style="width:3.5px;height:14px;border-radius:1px;background:#fff;"></span>
+      <span style="width:3.5px;height:14px;border-radius:1px;background:#fff;"></span>
+    </span>
+  </button>
+  <div class="ap-track" style="position:relative;width:180px;height:22px;display:flex;align-items:center;gap:2.5px;cursor:pointer;"></div>
+</div>
+
+<style>
+@keyframes ap-wave-a { 0%,100% { transform: scaleY(0.35); } 50% { transform: scaleY(1); } }
+@keyframes ap-wave-b { 0%,100% { transform: scaleY(0.55); } 50% { transform: scaleY(0.8); } }
+@keyframes ap-wave-c { 0%,100% { transform: scaleY(0.25); } 50% { transform: scaleY(1); } }
+.auralo-player .ap-btn:hover { transform: scale(1.06); box-shadow: 0 6px 18px rgba(47,111,235,0.5), inset 0 1px 1px rgba(255,255,255,0.35); }
+</style>
+
+<script>
+(function () {
+  var BAR_COUNT = 32;
+  var ACTIVE_COLOR = '#2255e0';
+  var INACTIVE_COLOR = 'rgba(0,0,0,0.12)';
+  var ANIMS = ['ap-wave-a', 'ap-wave-b', 'ap-wave-c'];
+
+  function formatTime(t) {
+    if (!isFinite(t) || t < 0) t = 0;
+    var m = Math.floor(t / 60);
+    var s = Math.floor(t % 60);
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  function initPlayer(root) {
+    var audio = root.querySelector('.ap-audio');
+    var btn = root.querySelector('.ap-btn');
+    var playIcon = root.querySelector('.ap-icon-play');
+    var pauseIcon = root.querySelector('.ap-icon-pause');
+    var track = root.querySelector('.ap-track');
+    var startAt = parseFloat(root.getAttribute('data-start') || '0') || 0;
+
+    audio.src = root.getAttribute('data-src');
+
+    var bars = [];
+    for (var i = 0; i < BAR_COUNT; i++) {
+      var wobble = Math.abs(Math.sin(i * 1.35) * 0.6 + Math.sin(i * 0.6) * 0.4);
+      var height = Math.round(5 + wobble * 13);
+      var bar = document.createElement('div');
+      bar.style.cssText = 'width:3px;height:' + height + 'px;border-radius:2px;flex-shrink:0;background:' + INACTIVE_COLOR + ';transform-origin:center;transition:background 0.15s linear;animation-name:' + ANIMS[i % ANIMS.length] + ';animation-duration:' + (0.7 + (i % 5) * 0.12).toFixed(2) + 's;animation-delay:' + ((i % 7) * 0.08).toFixed(2) + 's;animation-iteration-count:infinite;animation-timing-function:ease-in-out;animation-play-state:paused;';
+      track.appendChild(bar);
+      bars.push(bar);
+    }
+
+    var duration = 0;
+    var durationFound = false;
+
+    function resolveDuration() {
+      if (isFinite(audio.duration) && audio.duration > 0) {
+        duration = audio.duration;
+        durationFound = true;
+        return true;
+      }
+      if (audio.buffered && audio.buffered.length > 0) {
+        var end = audio.buffered.end(audio.buffered.length - 1);
+        if (isFinite(end) && end > 0) {
+          duration = end;
+          durationFound = true;
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function applyStartAt() {
+      if (startAt > 0 && audio.currentTime < startAt) {
+        audio.currentTime = startAt;
+      }
+    }
+
+    function render() {
+      var progressPercent = durationFound ? Math.min(100, (audio.currentTime / duration) * 100) : 0;
+      for (var i = 0; i < bars.length; i++) {
+        var barPos = (i / BAR_COUNT) * 100;
+        bars[i].style.background = barPos <= progressPercent ? ACTIVE_COLOR : INACTIVE_COLOR;
+        bars[i].style.animationPlayState = audio.paused ? 'paused' : 'running';
+      }
+      playIcon.style.display = audio.paused ? '' : 'none';
+      pauseIcon.style.display = audio.paused ? 'none' : 'flex';
+    }
+
+    audio.addEventListener('loadedmetadata', function () { resolveDuration(); applyStartAt(); render(); });
+    audio.addEventListener('durationchange', function () { if (resolveDuration()) applyStartAt(); render(); });
+    audio.addEventListener('progress', function () { if (resolveDuration()) applyStartAt(); render(); });
+    audio.addEventListener('timeupdate', render);
+    audio.addEventListener('play', render);
+    audio.addEventListener('pause', render);
+    audio.addEventListener('ended', function () { audio.currentTime = 0; render(); });
+
+    btn.addEventListener('click', function () {
+      if (audio.paused) {
+        if (audio.currentTime === 0) applyStartAt();
+        audio.play().catch(function () {});
+      } else {
+        audio.pause();
+      }
+    });
+
+    track.addEventListener('click', function (e) {
+      if (!durationFound) return;
+      var rect = track.getBoundingClientRect();
+      var ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+      audio.currentTime = ratio * duration;
+      render();
+    });
+
+    render();
+  }
+
+  var players = document.querySelectorAll('.auralo-player');
+  for (var i = 0; i < players.length; i++) initPlayer(players[i]);
+})();
+</script>
+</body>
+</html>
